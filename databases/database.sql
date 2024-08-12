@@ -1,5 +1,5 @@
-create database test1;
-use test1;
+create database arandu;
+use arandu;
 create table user(
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     nombre varchar(255) not null,

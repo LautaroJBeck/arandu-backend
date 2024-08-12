@@ -173,7 +173,7 @@ ruta.get("/historial/:id",(req,res)=>{
         
     }
 })
-// Arreglar este
+
 ruta.get("/puntaje/:id_examen/:nivel",(req,res)=>{
     try {
         req.getConnection((err,conn)=>{
@@ -213,7 +213,7 @@ ruta.post("/", (req, res) => {
             // Check if the user has added an exam in the last 30 seconds
             const checkRecentExamQuery = `
                 SELECT * FROM examen 
-                WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, fecha, NOW()) < 15
+                WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, fecha, NOW()) < 5
             `;
 
             conn.query(checkRecentExamQuery, [user_id], (err, recentExams) => {
@@ -224,7 +224,7 @@ ruta.post("/", (req, res) => {
                 }
 
                 if (recentExams.length > 0) {
-                    return res.status(429).json({ msg: "You can only submit one exam every 15 seconds." });
+                    return res.status(429).json({ msg: "You can only submit one exam every 5 seconds." });
                 }
 
                 // Proceed to insert new exam
@@ -257,8 +257,6 @@ ruta.post("/", (req, res) => {
                         if (correcto && tipos[tipo]) {
                             puntajes[tipos[tipo]][nivel]++;
                             console.log(`Tipo: ${tipo}, Nivel: ${nivel}, Puntaje actualizado:`, puntajes);
-                        } else {
-                            console.warn(`Datos incorrectos o no encontrados para tipo: ${tipo}, nivel: ${nivel}`);
                         }
                     });
                     conn.query("INSERT INTO puntajes_general SET ?", [{
@@ -305,7 +303,7 @@ ruta.post("/:nivel",(req,res)=>{
             // Check if the user has added an exam in the last 30 seconds
             const checkRecentExamQuery = `
                 SELECT * FROM examen 
-                WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, fecha, NOW()) < 15
+                WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, fecha, NOW()) < 5
             `;
 
             conn.query(checkRecentExamQuery, [user_id], (err, recentExams) => {
@@ -316,14 +314,14 @@ ruta.post("/:nivel",(req,res)=>{
                 }
 
                 if (recentExams.length > 0) {
-                    return res.status(429).json({ msg: "You can only submit one exam every 15 seconds." });
+                    return res.status(429).json({ msg: "You can only submit one exam every 5 seconds." });
                 }
 
                 // Proceed to insert new exam
                 conn.query("INSERT INTO examen SET ?", [{ user_id, total,nivel }], (err, rows) => {
                     if (err) {
                         return conn.rollback(() => {
-                            res.status(500).json({ error: "Error al insertar nuevo examen." });
+                            res.status(500).json({ error: "Error al insertar nuevo examen.",xd:"xd" });
                         });
                     }
                     const examId = rows.insertId;
@@ -344,20 +342,18 @@ ruta.post("/:nivel",(req,res)=>{
                     data.forEach(([correcto,tipo])=>{
                         if(correcto &&tipos[tipo]){
                             puntajes[tipos[tipo]]++
-                        }else{
-                            console.warn(`Datos incorrectos o no encontrados para tipo: ${tipo}, nivel: ${nivel}`); 
                         }
                     })
                     conn.query("INSERT INTO puntajes_unidad SET ?",[{
                         id_examen: examId,
-                        nivel,
                         decodificacion:puntajes.decodificacion,
                         literal:puntajes.literal,
                         inferencial:puntajes.inferencial
                     }],(err, rows) => {
                         if (err) {
+                            console.log(err)
                             return conn.rollback(() => {
-                                res.status(500).json({ error: "Error al insertar nuevo examen." });
+                                res.status(500).json({ error: "Error al insertar nuevo examen.",xd2:"xd" });
                             });
                         }else{
                             res.status(200).json({ msg: "Los datos se agregaron exitosamente",puntajes });
