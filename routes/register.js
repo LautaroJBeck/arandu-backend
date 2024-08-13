@@ -154,6 +154,7 @@ ruta.delete("/:id", [
     }
 
   } catch (error) {
+    console.log(error)
     res.status(500).json({ error: "Error en el servidor." });
   }
 });
