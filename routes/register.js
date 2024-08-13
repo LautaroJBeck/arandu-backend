@@ -103,46 +103,71 @@ ruta.post("/token/:id",async(req,res)=>{
 
 })
 //Borrar cuenta
-ruta.delete("/:id",[
-  check("password","No introdujiste la contraseña").not().isEmpty(),
+ruta.delete("/:id", [
+  check("password", "No introdujiste la contraseña").not().isEmpty(),
   validarCampos
-],(req,res)=>{
+], async (req, res) => {
   try {
-    let {id}=req.params
-    let {password}=req.body
-    req.getConnection((err,conn)=>{
-      if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-        conn.query("SELECT * FROM user WHERE id=?",[id],(err,rows)=>{
-          if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+    let { id } = req.params;
+    let { password } = req.body;
 
-          let validPassword=bcryptjs.compareSync(password,rows[0].password)
-          if(!validPassword){
-            return res.status(400).json({
-              errors:["No introdujiste tu contraseña correctamente"]
-            })
+    req.getConnection(async (err, conn) => {
+      if (err) {
+        return res.status(500).json({ error: "Error al conectar con la base de datos." });
+      }
+
+      // Iniciar transacción
+      conn.beginTransaction(async (err) => {
+        if (err) return res.status(500).json({ error: "Error al iniciar la transacción." });
+
+        try {
+          // Verificar existencia del usuario
+          const [userRows] = await conn.query("SELECT * FROM user WHERE id=?", [id]);
+          if (userRows.length === 0) {
+            return res.status(404).json({ error: "Usuario no encontrado." });
           }
-          conn.query("SELECT * FROM unidad where user_id=?",[id],(err,rows)=>{
-            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-            
-            for(let i=0;i<rows.length;i++){
-              conn.query("DELETE FROM niveles where nivel_id=?",[rows[i].nivel_id],(err,rows)=>{
-                if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-              })
-            }
-            conn.query("DELETE FROM unidad where user_id=?",[id],(err,rows)=>{
-              if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-              conn.query("DELETE FROM user where id=?",[id],(err,rows)=>{
-                return res.status(200).json({msg:"El usuario se eliminó correctamente"})
-              })
-            })
 
-          })
-        })
-    })
-  }catch{
-    
+          let validPassword = bcryptjs.compareSync(password, userRows[0].password);
+          if (!validPassword) {
+            return res.status(400).json({
+              errors: ["No introdujiste tu contraseña correctamente"]
+            });
+          }
+
+          // Eliminar los niveles asociados al usuario
+          const [unidadRows] = await conn.query("SELECT * FROM unidad WHERE user_id=?", [id]);
+          for (let i = 0; i < unidadRows.length; i++) {
+            await conn.query("DELETE FROM niveles WHERE nivel_id=?", [unidadRows[i].nivel_id]);
+          }
+
+          // Eliminar unidades y el usuario
+          await conn.query("DELETE FROM unidad WHERE user_id=?", [id]);
+          await conn.query("DELETE FROM user WHERE id=?", [id]);
+
+          // Confirmar transacción
+          conn.commit(err => {
+            if (err) {
+              return conn.rollback(() => {
+                res.status(500).json({ error: "Error al confirmar la transacción." });
+              });
+            }
+
+            res.status(200).json({ msg: "El usuario se eliminó correctamente" });
+          });
+
+        } catch (error) {
+          // Si hay un error, hacer rollback de la transacción
+          conn.rollback(() => {
+            res.status(500).json({ error: "Error en la operación de eliminación." });
+          });
+        }
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Error en el servidor." });
   }
-})
+});
+
 
 //Cambiar contraseña
 ruta.put("/password/:id",[
