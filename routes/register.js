@@ -108,49 +108,40 @@ ruta.delete("/:id", [
   validarCampos
 ], async (req, res) => {
   try {
-    let { id } = req.params;
-    let { password } = req.body;
-
-    // Obtén la conexión y usa `promise()` para habilitar Promesas
-    const conn = await pool.promise().getConnection();
+    const conn = await req.getConnection();  // Obtener la conexión
+    const promiseConn = conn.promise();  // Convertir la conexión a Promesas
 
     try {
-      // Iniciar transacción
-      await conn.beginTransaction();
+      await promiseConn.beginTransaction();
 
-      // Verificar existencia del usuario
-      const [userRows] = await conn.query("SELECT * FROM user WHERE id=?", [id]);
+      const [userRows] = await promiseConn.query("SELECT * FROM user WHERE id=?", [req.params.id]);
       if (userRows.length === 0) {
         return res.status(404).json({ error: "Usuario no encontrado." });
       }
 
-      let validPassword = bcryptjs.compareSync(password, userRows[0].password);
+      let validPassword = bcryptjs.compareSync(req.body.password, userRows[0].password);
       if (!validPassword) {
         return res.status(400).json({
           errors: ["No introdujiste tu contraseña correctamente"]
         });
       }
 
-      // Eliminar los niveles asociados al usuario
-      const [unidadRows] = await conn.query("SELECT * FROM unidad WHERE user_id=?", [id]);
+      const [unidadRows] = await promiseConn.query("SELECT * FROM unidad WHERE user_id=?", [req.params.id]);
       for (let i = 0; i < unidadRows.length; i++) {
-        await conn.query("DELETE FROM niveles WHERE nivel_id=?", [unidadRows[i].nivel_id]);
+        await promiseConn.query("DELETE FROM niveles WHERE nivel_id=?", [unidadRows[i].nivel_id]);
       }
 
-      // Eliminar unidades y el usuario
-      await conn.query("DELETE FROM unidad WHERE user_id=?", [id]);
-      await conn.query("DELETE FROM user WHERE id=?", [id]);
+      await promiseConn.query("DELETE FROM unidad WHERE user_id=?", [req.params.id]);
+      await promiseConn.query("DELETE FROM user WHERE id=?", [req.params.id]);
 
-      // Confirmar transacción
-      await conn.commit();
+      await promiseConn.commit();
       res.status(200).json({ msg: "El usuario se eliminó correctamente" });
 
     } catch (error) {
-      // Si hay un error, hacer rollback de la transacción
-      await conn.rollback();
+      await promiseConn.rollback();
       res.status(500).json({ error: "Error en la operación de eliminación." });
     } finally {
-      conn.release();
+      conn.release();  // Liberar la conexión
     }
 
   } catch (error) {
@@ -158,6 +149,7 @@ ruta.delete("/:id", [
     res.status(500).json({ error: "Error en el servidor." });
   }
 });
+
 
 
 //Cambiar contraseña
