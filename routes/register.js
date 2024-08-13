@@ -103,52 +103,46 @@ ruta.post("/token/:id",async(req,res)=>{
 
 })
 //Borrar cuenta
-ruta.delete("/:id", [
-  check("password", "No introdujiste la contraseña").not().isEmpty(),
+ruta.delete("/:id",[
+  check("password","No introdujiste la contraseña").not().isEmpty(),
   validarCampos
-], async (req, res) => {
+],(req,res)=>{
   try {
-    const conn = await req.getConnection();  // Obtener la conexión
-    const promiseConn = conn.promise();  // Convertir la conexión a Promesas
+    let {id}=req.params
+    let {password}=req.body
+    req.getConnection((err,conn)=>{
+      if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+        conn.query("SELECT * FROM user WHERE id=?",[id],(err,rows)=>{
+          if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+          let validPassword=bcryptjs.compareSync(password,rows[0].password)
+          if(!validPassword){
+            return res.status(400).json({
+              errors:["No introdujiste tu contraseña correctamente"]
+            })
+          }
+          conn.query("SELECT * FROM unidad where user_id=?",[id],(err,rows)=>{
+            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+            
+            for(let i=0;i<rows.length;i++){
+              conn.query("DELETE FROM niveles where nivel_id=?",[rows[i].nivel_id])
+              if(i==rows.length-1){
+                conn.query("DELETE FROM unidad where user_id=?",[id],(err,rows)=>{
+                  if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                  conn.query("DELETE FROM user where id=?",[id],(err,rows)=>{
+                    if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                    return res.status(200).json({msg:"El usuario se eliminó correctamente"})
+                  })
+                })
+              }
+            }
 
-    try {
-      await promiseConn.beginTransaction();
-
-      const [userRows] = await promiseConn.query("SELECT * FROM user WHERE id=?", [req.params.id]);
-      if (userRows.length === 0) {
-        return res.status(404).json({ error: "Usuario no encontrado." });
-      }
-
-      let validPassword = bcryptjs.compareSync(req.body.password, userRows[0].password);
-      if (!validPassword) {
-        return res.status(400).json({
-          errors: ["No introdujiste tu contraseña correctamente"]
-        });
-      }
-
-      const [unidadRows] = await promiseConn.query("SELECT * FROM unidad WHERE user_id=?", [req.params.id]);
-      for (let i = 0; i < unidadRows.length; i++) {
-        await promiseConn.query("DELETE FROM niveles WHERE nivel_id=?", [unidadRows[i].nivel_id]);
-      }
-
-      await promiseConn.query("DELETE FROM unidad WHERE user_id=?", [req.params.id]);
-      await promiseConn.query("DELETE FROM user WHERE id=?", [req.params.id]);
-
-      await promiseConn.commit();
-      res.status(200).json({ msg: "El usuario se eliminó correctamente" });
-
-    } catch (error) {
-      await promiseConn.rollback();
-      res.status(500).json({ error: "Error en la operación de eliminación." });
-    } finally {
-      conn.release();  // Liberar la conexión
-    }
-
-  } catch (error) {
-    console.log(error)
-    res.status(500).json({ error: "Error en el servidor." });
+          })
+        })
+    })
+  }catch{
+    
   }
-});
+})
 
 
 
