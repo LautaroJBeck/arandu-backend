@@ -17,11 +17,23 @@ const dbOptions={
     database:process.env.DB_DATABASE
 }
 
-
-
 app.use(myconn(mysql,dbOptions,`single`))
 app.use(cors())
 app.use(express.json())
+
+// Mantener viva la conexión enviando una consulta ligera cada 2 horas
+setInterval(() => {
+    app.use((req, res, next) => {
+        req.getConnection((err, connection) => {
+            if (err) return next(err);
+            connection.query('SELECT 1', (err) => {
+                if (err) console.log('Error keeping connection alive:', err);
+            });
+        });
+        next();
+    });
+}, 7200000); // 7200000 ms = 2 horas
+
 app.use("/api/examen",require("./routes/examen"))
 app.use("/api/preguntas",require("./routes/preguntas"))
 app.use("/api/register",require("./routes/register"))
