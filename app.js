@@ -32,7 +32,7 @@ setInterval(() => {
         });
         next();
     });
-}, 7200000); // 7200000 ms = 2 horas
+},  1800000); // 1800000 ms = 30 minutos
 
 app.use("/api/examen",require("./routes/examen"))
 app.use("/api/preguntas",require("./routes/preguntas"))
