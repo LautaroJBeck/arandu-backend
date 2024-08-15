@@ -26,8 +26,9 @@ setInterval(() => {
     app.use((req, res, next) => {
         req.getConnection((err, connection) => {
             if (err) return next(err);
-            connection.query('SELECT 1', (err) => {
+            connection.query('SELECT 1', (err,rows) => {
                 if (err) console.log('Error keeping connection alive:', err);
+                console.log(rows)
             });
         });
         next();
