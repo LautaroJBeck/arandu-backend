@@ -21,19 +21,25 @@ app.use(myconn(mysql,dbOptions,`single`))
 app.use(cors())
 app.use(express.json())
 
-// Mantener viva la conexión enviando una consulta ligera cada 2 horas
+// Middleware para hacer ping a la base de datos cada 600 segundos
 setInterval(() => {
     app.use((req, res, next) => {
-        req.getConnection((err, connection) => {
-            if (err) return next(err);
-            connection.query('SELECT 1', (err,rows) => {
-                if (err) console.log('Error keeping connection alive:', err);
-                console.log(rows)
-            });
+      req.getConnection((err, connection) => {
+        if (err) {
+          console.error('Error obteniendo la conexión:', err);
+          return next(err);
+        }
+        connection.ping((err) => {
+          if (err) {
+            console.error('Error al hacer ping a la base de datos:', err);
+          } else {
+            console.log('Ping a la base de datos exitoso.');
+          }
         });
-        next();
+      });
+      next();
     });
-},  1800000); // 1800000 ms = 30 minutos
+  }, 600000); // Ping cada 600 segundos
 
 app.use("/api/examen",require("./routes/examen"))
 app.use("/api/preguntas",require("./routes/preguntas"))
