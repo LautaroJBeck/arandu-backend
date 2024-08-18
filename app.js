@@ -24,7 +24,7 @@ app.use(express.json());
 
 let connectionPool; // Variable para almacenar la conexión
 
-// Configura la conexión para poder usarla en el ping
+// Configura la conexión para poder usarla en la consulta
 app.use((req, res, next) => {
   req.getConnection((err, connection) => {
     if (err) {
@@ -35,23 +35,23 @@ app.use((req, res, next) => {
   });
 });
 
-// Función para hacer ping a la base de datos
-function pingDatabase() {
+// Función para ejecutar la consulta "SELECT 1"
+function queryDatabase() {
   if (connectionPool) {
-    connectionPool.ping((err) => {
+    connectionPool.query('SELECT 1', (err, results) => {
       if (err) {
-        console.error('Error al hacer ping a la base de datos:', err);
+        console.error('Error al ejecutar la consulta "SELECT 1":', err);
       } else {
-        console.log('Ping a la base de datos exitoso.');
+        console.log('Consulta "SELECT 1" ejecutada exitosamente:', results);
       }
     });
   } else {
-    console.log('No se pudo hacer ping: no hay conexión activa.');
+    console.log('No se pudo ejecutar la consulta: no hay conexión activa.');
   }
 }
 
-// Ejecuta el ping cada 6000 milisegundos (6 segundos)
-setInterval(pingDatabase, 60000);
+// Ejecuta la consulta cada 6000 milisegundos (6 segundos)
+setInterval(queryDatabase, 6000);
 
 // Rutas de la API
 app.use("/api/examen", require("./routes/examen"));
