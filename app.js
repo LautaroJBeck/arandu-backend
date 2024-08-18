@@ -51,7 +51,7 @@ function queryDatabase() {
 }
 
 // Ejecuta la consulta cada 6000 milisegundos (6 segundos)
-setInterval(queryDatabase, 6000);
+setInterval(queryDatabase, 600000);
 
 // Rutas de la API
 app.use("/api/examen", require("./routes/examen"));
