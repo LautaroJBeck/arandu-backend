@@ -155,7 +155,6 @@ ruta.get("/:nivel",(req,res)=>{
                 `
                 conn.query(query,(err,rows)=>{
                     if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
-                    console.log(rows)
                     return res.status(200).json({ listaPreguntas: shuffleArray(rows) });
                 })
     })
@@ -256,7 +255,6 @@ ruta.post("/", (req, res) => {
                     data.forEach(([correcto, nivel, tipo]) => {
                         if (correcto && tipos[tipo]) {
                             puntajes[tipos[tipo]][nivel]++;
-                            console.log(`Tipo: ${tipo}, Nivel: ${nivel}, Puntaje actualizado:`, puntajes);
                         }
                     });
                     conn.query("INSERT INTO puntajes_general SET ?", [{

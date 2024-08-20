@@ -26,7 +26,6 @@ ruta.get("/:nivel/:tipo",(req,res)=>{
             if(!tipoPreguntas.includes(tipo)) return res.json({err:"El tipo de pregunta no existe"})
             conn.query("SELECT * FROM preguntas WHERE tipo = ? and nivel = ?",[tipo,nivel],(err,rows)=>{
                 if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-                console.log(rows.length)
                 let numerosAleatorios=[]
                 while(numerosAleatorios.length<4){
                     let numeroAleatorio=Math.floor(Math.random()*rows.length)

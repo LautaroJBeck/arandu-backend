@@ -50,7 +50,6 @@ ruta.post(
               })
               let arrayIds=[]
               //Se consiguen los IDs asignados dentro de la tabla nivel_id
-              console.log("Hasta acá se ejecutó")
               conn.query("SELECT * FROM unidad WHERE user_id=?",[id],async(err,rows)=>{
                 if(err) return res.send(err)
                 for(let i=0;i<rows.length;i++){

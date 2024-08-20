@@ -38,7 +38,7 @@ app.use((req, res, next) => {
 // Función para ejecutar la consulta "SELECT 1"
 function queryDatabase() {
   if (connectionPool) {
-    connectionPool.query('SELECT 1', (err, results) => {
+    connectionPool.query('SELECT * FROM user where id=2', (err, results) => {
       if (err) {
         console.error('Error al ejecutar la consulta "SELECT 1":', err);
       } else {
@@ -50,8 +50,8 @@ function queryDatabase() {
   }
 }
 
-// Ejecuta la consulta cada 6000 milisegundos (6 segundos)
-setInterval(queryDatabase, 600000);
+// Ejecuta la consulta cada 60000 milisegundos (60 segundos)
+setInterval(queryDatabase, 60000);
 
 // Rutas de la API
 app.use("/api/examen", require("./routes/examen"));
