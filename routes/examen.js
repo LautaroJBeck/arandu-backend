@@ -206,26 +206,6 @@ ruta.post("/", (req, res) => {
         if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
 
         // Iniciar una transacción
-        conn.beginTransaction((err) => {
-            if (err) return res.status(500).json({ error: "Error al iniciar la transacción." });
-
-            // Check if the user has added an exam in the last 30 seconds
-            const checkRecentExamQuery = `
-                SELECT * FROM examen 
-                WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, fecha, NOW()) < 5
-            `;
-
-            conn.query(checkRecentExamQuery, [user_id], (err, recentExams) => {
-                if (err) {
-                    return conn.rollback(() => {
-                        res.status(500).json({ error: "Error al verificar exámenes recientes." });
-                    });
-                }
-
-                if (recentExams.length > 0) {
-                    return res.status(429).json({ msg: "You can only submit one exam every 5 seconds." });
-                }
-
                 // Proceed to insert new exam
                 conn.query("INSERT INTO examen SET ?", [{ user_id, total,nivel:"general" }], (err, rows) => {
                     if (err) {
@@ -281,8 +261,6 @@ ruta.post("/", (req, res) => {
                 });
             });
         });
-    });
-});
 ruta.post("/:nivel",(req,res)=>{
     let {nivel} =req.params;
     const { user_id, data, total } = req.body;
@@ -294,34 +272,10 @@ ruta.post("/:nivel",(req,res)=>{
     req.getConnection((err, conn) => {
         if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
 
-        // Iniciar una transacción
-        conn.beginTransaction((err) => {
-            if (err) return res.status(500).json({ error: "Error al iniciar la transacción." });
-
-            // Check if the user has added an exam in the last 30 seconds
-            const checkRecentExamQuery = `
-                SELECT * FROM examen 
-                WHERE user_id = ? AND TIMESTAMPDIFF(SECOND, fecha, NOW()) < 5
-            `;
-
-            conn.query(checkRecentExamQuery, [user_id], (err, recentExams) => {
-                if (err) {
-                    return conn.rollback(() => {
-                        res.status(500).json({ error: "Error al verificar exámenes recientes." });
-                    });
-                }
-
-                if (recentExams.length > 0) {
-                    return res.status(429).json({ msg: "You can only submit one exam every 5 seconds." });
-                }
-
                 // Proceed to insert new exam
                 conn.query("INSERT INTO examen SET ?", [{ user_id, total,nivel }], (err, rows) => {
-                    if (err) {
-                        return conn.rollback(() => {
-                            res.status(500).json({ error: "Error al insertar nuevo examen.",xd:"xd" });
-                        });
-                    }
+                    if (err) return res.status(500).json({ error: "Error al insertar nuevo examen.",xd:"xd" });
+                    
                     const examId = rows.insertId;
                     const tipos = {
                         contexto: "decodificacion",
@@ -350,17 +304,14 @@ ruta.post("/:nivel",(req,res)=>{
                     }],(err, rows) => {
                         if (err) {
                             console.log(err)
-                            return conn.rollback(() => {
-                                res.status(500).json({ error: "Error al insertar nuevo examen.",xd2:"xd" });
-                            });
+                            return res.status(500).json({ error: "Error al insertar nuevo examen.",xd2:"xd" });
+
                         }else{
                             res.status(200).json({ msg: "Los datos se agregaron exitosamente",puntajes });
                         }
 
                     })
                 });
-            });
-        });
     });
 })
 
