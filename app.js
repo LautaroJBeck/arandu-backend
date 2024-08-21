@@ -18,7 +18,7 @@ const dbOptions = {
 };
 
 // Middleware de conexión a la base de datos y configuración
-app.use(myconn(mysql, dbOptions, 'single'));
+app.use(myconn(mysql, dbOptions, 'pool'));
 app.use(cors());
 app.use(express.json());
 
@@ -38,7 +38,7 @@ app.use((req, res, next) => {
 // Función para ejecutar la consulta "SELECT 1"
 function queryDatabase() {
   if (connectionPool) {
-    connectionPool.query('SELECT * FROM user where id=2', (err, results) => {
+    connectionPool.query('SELECT 1', (err, results) => {
       if (err) {
         console.error('Error al ejecutar la consulta "SELECT 1":', err);
       } else {
