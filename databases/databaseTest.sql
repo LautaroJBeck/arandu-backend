@@ -1,10 +1,11 @@
-create database test1;
-use test1;
+create database test2;
+use test2;
 create table user(
     id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
     nombre varchar(255) not null,
     apellido varchar(255) not null,
     correo varchar(255) not null,
+    rol varchar(255) not null,
     password varchar(255) not null
 );
 create table unidad(
@@ -76,5 +77,23 @@ create table puntajes_unidad(
     inferencial int DEFAULT 0,
     foreign key(id_examen) references examen(examen_id),
     primary key(id_puntaje)
+);
+create table solicitud_pendiente(
+    id int not null AUTO_INCREMENT,
+    correo_alumno varchar(255) not null,
+    correo_profesor varchar(255) not null,
+    nombre_profesor varchar(255) not null,
+    apellido_profesor varchar(255) not null,
+    profesor_id int not null,
+    fecha TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    foreign key(profesor_id) references user(id),
+    primary key(id)
+);
+create table relaciones(
+    id int not null AUTO_INCREMENT,
+    profesor_id int NOT NULL,
+    alumno_id int not NULL,
+    correo_alumno varchar(255) not null,
+    primary key(id)
 );
 

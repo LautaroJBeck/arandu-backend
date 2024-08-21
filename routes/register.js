@@ -14,10 +14,11 @@ ruta.post(
     check("apellido", "No introdujiste el apellido").not().isEmpty(),
     check("password", "No introdujiste la contraseña").not().isEmpty(),
     check("correo", "No introdujiste el correo").not().isEmpty(),
+    check("rol","No introdujiste como quieres registrarte").not().isEmpty(),
     validarCampos,
   ],
   (req, res) => {
-    let { nombre, apellido, password, correo } = req.body;
+    let { nombre, apellido, password, correo,rol } = req.body;
     const salt = bcryptjs.genSaltSync();
     let passwordEncrypted = bcryptjs.hashSync(password, salt);
     password = passwordEncrypted;
@@ -34,12 +35,12 @@ ruta.post(
           let expRegular=/[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/g
     
           if(!expRegular.test(correo)) return res.status(404).json({errors:["El correo introducido no es válido"]})
-          conn.query("INSERT into user set ?",[{ nombre, apellido, password, correo }],(err, rows) => {
+          conn.query("INSERT into user set ?",[{ nombre, apellido,rol, password, correo }],(err, rows) => {
             if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
             conn.query("SELECT * FROM user WHERE correo=? AND password=?",[correo,password],async (err, rows) => {      //Busca el ID de este usuario
               if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-              const { id, nombre, apellido, correo } = rows[0];
-              const token = await generarJWT(id,nombre,apellido,correo);
+              const { id, nombre, apellido, rol,correo } = rows[0];
+              const token = await generarJWT(id,nombre,apellido,correo,rol);
               //A través del id, creo los puntajes del usuario
               ["basico","medio","avanzado"].forEach(el=>{
                 let user_id=id;

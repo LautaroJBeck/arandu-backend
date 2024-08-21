@@ -30,8 +30,8 @@ ruta.post("/",[
                     })
                 }
                 //Generar el json web token
-                let {id,nombre,apellido,correo}=rows[0]
-                const token=await generarJWT(id,nombre,apellido,correo)
+                let {id,nombre,apellido,correo,rol}=rows[0]
+                const token=await generarJWT(id,nombre,apellido,correo,rol)
                 return res.json({
                     token,error:null
                 })
