@@ -4,6 +4,7 @@ const { validarCampos } = require("../helpers/validarCampos");
 
 const bcryptjs = require("bcryptjs");
 const generarJWT = require("../helpers/generarJWT");
+const { actualizarConCorreo, actualizarSinCorreo } = require("../controllers/actualizarUsuario");
 const ruta = Router();
 
 //Registrarse
@@ -91,9 +92,9 @@ ruta.post(
 //Obtener token cuando el usuario si esta registrado
 ruta.post("/token/:id",async(req,res)=>{
   try{
-    let {correo,nombre,apellido}=req.body
+    let {correo,nombre,apellido,rol}=req.body
     let {id}=req.params
-    const token=await generarJWT(id,nombre,apellido,correo)
+    const token=await generarJWT(id,nombre,apellido,correo,rol)
     return res.status(200).json({
         token,error:null
     })
@@ -103,46 +104,72 @@ ruta.post("/token/:id",async(req,res)=>{
 
 })
 //Borrar cuenta
-ruta.delete("/:id",[
-  check("password","No introdujiste la contraseña").not().isEmpty(),
+ruta.delete("/:id", [
+  check("password", "No introdujiste la contraseña").not().isEmpty(),
   validarCampos
-],(req,res)=>{
+], (req, res) => {
   try {
-    let {id}=req.params
-    let {password}=req.body
-    req.getConnection((err,conn)=>{
-      if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-        conn.query("SELECT * FROM user WHERE id=?",[id],(err,rows)=>{
-          if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-          let validPassword=bcryptjs.compareSync(password,rows[0].password)
-          if(!validPassword){
-            return res.status(400).json({
-              errors:["No introdujiste tu contraseña correctamente"]
-            })
-          }
-          conn.query("SELECT * FROM unidad where user_id=?",[id],(err,rows)=>{
-            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-            
-            for(let i=0;i<rows.length;i++){
-              conn.query("DELETE FROM niveles where nivel_id=?",[rows[i].nivel_id])
-              if(i==rows.length-1){
-                conn.query("DELETE FROM unidad where user_id=?",[id],(err,rows)=>{
-                  if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-                  conn.query("DELETE FROM user where id=?",[id],(err,rows)=>{
-                    if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-                    return res.status(200).json({msg:"El usuario se eliminó correctamente"})
-                  })
-                })
-              }
-            }
+    let { id } = req.params;
+    let { password } = req.body;
 
-          })
-        })
-    })
-  }catch{
-    
+    req.getConnection((err, conn) => {
+      if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
+
+      // Verificar que el usuario existe y obtener su contraseña
+      conn.query("SELECT * FROM user WHERE id=?", [id], (err, userRows) => {
+        if (err) return res.status(500).json({ error: "Error al consultar el usuario en la base de datos." });
+        if (userRows.length === 0) {
+          return res.status(404).json({ errors: ["Usuario no encontrado"] });
+        }
+
+        let validPassword = bcryptjs.compareSync(password, userRows[0].password);
+        if (!validPassword) {
+          return res.status(400).json({
+            errors: ["No introdujiste tu contraseña correctamente"]
+          });
+        }
+
+        // Eliminar registros en tablas relacionadas antes de eliminar en `examen`
+        conn.query("DELETE FROM puntajes_unidad WHERE id_examen IN (SELECT examen_id FROM examen WHERE user_id=?)", [id], (err) => {
+          if (err) return res.status(500).json({ error: "Error al eliminar puntajes asociados en unidad." });
+
+          conn.query("DELETE FROM puntajes_general WHERE id_examen IN (SELECT examen_id FROM examen WHERE user_id=?)", [id], (err) => {
+            if (err) return res.status(500).json({ error: "Error al eliminar puntajes generales asociados." });
+
+            conn.query("DELETE FROM examen WHERE user_id=?", [id], (err) => {
+              if (err) return res.status(500).json({ error: "Error al eliminar exámenes asociados." });
+
+              conn.query("DELETE FROM niveles WHERE nivel_id IN (SELECT nivel_id FROM unidad WHERE user_id=?)", [id], (err) => {
+                if (err) return res.status(500).json({ error: "Error al eliminar niveles asociados." });
+
+                conn.query("DELETE FROM unidad WHERE user_id=?", [id], (err) => {
+                  if (err) return res.status(500).json({ error: "Error al eliminar unidades asociadas." });
+
+                  conn.query("DELETE FROM solicitud_pendiente WHERE profesor_id=? OR correo_alumno IN (SELECT correo FROM user WHERE id=?)", [id, id], (err) => {
+                    if (err) return res.status(500).json({ error: "Error al eliminar solicitudes pendientes asociadas." });
+
+                    conn.query("DELETE FROM relaciones WHERE profesor_id=? OR alumno_id=?", [id, id], (err) => {
+                      if (err) return res.status(500).json({ error: "Error al eliminar relaciones asociadas." });
+
+                      // Finalmente eliminar el usuario
+                      conn.query("DELETE FROM user WHERE id=?", [id], (err) => {
+                        if (err) return res.status(500).json({ error: "Error al eliminar el usuario." });
+                        return res.status(200).json({ msg: "El usuario se eliminó correctamente" });
+                      });
+                    });
+                  });
+                });
+              });
+            });
+          });
+        });
+      });
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Error interno del servidor." });
   }
-})
+});
+
 
 
 
@@ -184,40 +211,39 @@ ruta.put("/password/:id",[
 
 
 //Editar datos (nombre,apellido y correo)
-ruta.put("/:id",[
+ruta.put("/:id", [
   check("nombre", "No introdujiste el nombre").not().isEmpty(),
   check("apellido", "No introdujiste el apellido").not().isEmpty(),
   check("correo", "No introdujiste el correo").not().isEmpty(),
   validarCampos,
-],(req,res)=>{
-  try{
-    let {id}=req.params;
-    let {correo,nombre,apellido,originalCorreo}=req.body
-    req.getConnection((err,conn)=>{
-      if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-        //Primera petición, comprueba si el correo que el usuario desea usar no esta ya usado
-        if(correo!=originalCorreo){
-          conn.query("SELECT correo FROM user WHERE correo=?",[correo],(err, rows) => {
-            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-            if (rows.length > 0) return res.status(404).json({ errors: ["Este correo ya está usado"] })
-            let expRegular=/[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/g
-            if(!expRegular.test(correo)) return res.status(404).json({errors:["El correo introducido no es válido"]})
-            conn.query("UPDATE user set ? WHERE id=?",[{correo,nombre,apellido},id],(err,rows)=>{
-              if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-              return res.status(200).json({msg:"Los datos se actualizaron existosamente",newData:{
-            correo,nombre,apellido}})
-            })
-          })
-        }else{
-          conn.query("UPDATE user set ? WHERE id=?",[{nombre,apellido},id],(err,rows)=>{
-            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
-            return res.status(200).json({msg:"Los datos se actualizaron existosamente",newData:{
-          correo,nombre,apellido}})
-          })
-        }
-    })
-  }catch(err){
-    return res.status(500).json({ error: "Error al conectar con la base de datos." })
+], (req, res) => {
+  try {
+    let { id } = req.params;
+    let { correo, nombre, apellido, originalCorreo, rol } = req.body;
+
+    req.getConnection((err, conn) => {
+      console.log(err)
+      if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
+
+      // Verificar si el correo ya está en uso
+      if (correo !== originalCorreo) {
+        conn.query("SELECT correo FROM user WHERE correo=?", [correo], (err, rows) => {
+          if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
+          if (rows.length > 0) return res.status(404).json({ errors: ["Este correo ya está usado"] });
+
+          let expRegular = /[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?/g;
+          if (!expRegular.test(correo)) return res.status(404).json({ errors: ["El correo introducido no es válido"] });
+
+          // Actualizar el usuario en la tabla principal
+          actualizarConCorreo(conn,id,{ correo, nombre, apellido,originalCorreo,rol},res)
+        });
+      } else {
+        // Si el correo no cambia, solo actualizar el nombre y apellido
+        actualizarSinCorreo(conn, id, { correo, nombre, apellido, rol }, res);
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: "Error interno del servidor." });
   }
-})
+});
 module.exports = ruta;

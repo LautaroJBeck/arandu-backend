@@ -94,6 +94,11 @@ create table relaciones(
     profesor_id int NOT NULL,
     alumno_id int not NULL,
     correo_alumno varchar(255) not null,
+    correo_profesor varchar(255) not null,
+    nombre_alumno varchar(255) not null,
+    nombre_profesor varchar(255) not null,
+    apellido_alumno varchar(255) not null,
+    apellido_profesor varchar(255) not null,
     primary key(id)
 );
 
