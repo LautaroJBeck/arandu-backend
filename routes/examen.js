@@ -1,4 +1,6 @@
-const {Router}=require("express")
+const {Router}=require("express");
+const formatToISODate = require("../helpers/formatToISO");
+const parseDate = require("../helpers/convertOnlyDate");
 
 const ruta=Router();
 
@@ -256,7 +258,101 @@ ruta.post("/", (req, res) => {
                                 res.status(500).json({ error: "Error al confirmar la transacción." });
                             });
                         }
-                        return res.status(200).json({ msg: "Los datos se agregaron exitosamente",puntajes })
+                        conn.query("SELECT * FROM ejercicios_ultima_fecha WHERE user_id=?",[user_id],(err,rows)=>{
+                            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                            const paraguayanDate=new Date().toLocaleDateString('es-PY', {
+                                timeZone: 'America/Asuncion',
+                            });
+                            const today=formatToISODate(paraguayanDate)
+                            const fechaUltimoEjercicio=rows[0].fecha.toISOString().split('T')[0]
+                            const cantidadActual=rows[0].cantidad
+                            if(fechaUltimoEjercicio!==today){
+                              //Primer ejercicio del dia
+                              conn.query("UPDATE ejercicios_ultima_fecha set ? WHERE user_id=?",[{fecha:today,cantidad:(total)},user_id],(err,rows)=>{
+                              if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                              
+                              if(cantidadActual>=12){
+                                conn.query(`SELECT * FROM rachas
+                                WHERE user_id = ?
+                                ORDER BY fecha_final DESC
+                                LIMIT 1;`,[user_id],(err,rows)=>{
+                                  if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                  if(rows.length==0){
+                                    conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                      if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                      return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})  
+                                    })
+                                  }else{
+                                    const idRacha=rows[0].id
+                                    const todayDate=parseDate(today)
+                                    const fechaUltimaRacha=parseDate(rows[0].fecha_final)
+                                    const diffTime=todayDate-fechaUltimaRacha
+                                    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                    if(diffDays>=2){
+                                      // Crear racha
+                                      conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                        if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                        return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})   
+                                      })
+                                    }else if(diffDays==1){
+                                      //Actualizar racha
+                                      conn.query("UPDATE rachas set ? WHERE id=?",[{user_id,fecha_final:today},idRacha],(err,rows)=>{
+                                        if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                        return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})  
+                                      })
+                                    }
+                                  }
+                                })
+                              }else{
+                                return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:false,cantidad:(total)})    
+                              }
+                              })
+                            }else{
+                              //Varios ejercicios en el dia
+                              let nuevaCantidad=rows[0].cantidad+(total)
+                              conn.query("UPDATE ejercicios_ultima_fecha set ? WHERE user_id=?",[{cantidad:nuevaCantidad},user_id],(err,rows)=>{
+                                if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                if(nuevaCantidad>=12){
+                                  conn.query(`SELECT * FROM rachas
+                                  WHERE user_id = ?
+                                  ORDER BY fecha_final DESC
+                                  LIMIT 1;`,[user_id],(err,rows)=>{
+                                    if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                    if(rows.length==0){
+                                      conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                        if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                        return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})  
+                                      })
+                                    }else{
+                                      const idRacha=rows[0].id
+                                      const todayDate=parseDate(today)
+                                      const fechaUltimaRacha=parseDate(rows[0].fecha_final)
+                                      const diffTime=todayDate-fechaUltimaRacha
+                                      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                      if(diffDays>=2){
+                                        // Crear racha
+                                        conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                          if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                          return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})    
+                                      })
+                                      }else if(diffDays==1){
+                                        //Actualizar racha
+                                        conn.query("UPDATE rachas set ? WHERE id=?",[{user_id,fecha_final:today},idRacha],(err,rows)=>{
+                                          if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                          return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true}) 
+                                        })
+                                      }else{
+                                        //Solo suma puntos
+                                        return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true}) 
+                                      }
+                                    }
+                                  })
+                                }else{
+                                  return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:false,cantidad:(total)})    
+                                }
+                              })
+                            }
+                          })
                     });
                 });
             });
@@ -303,13 +399,106 @@ ruta.post("/:nivel",(req,res)=>{
                         inferencial:puntajes.inferencial
                     }],(err, rows) => {
                         if (err) {
-                            console.log(err)
                             return res.status(500).json({ error: "Error al insertar nuevo examen.",xd2:"xd" });
-
                         }else{
-                            res.status(200).json({ msg: "Los datos se agregaron exitosamente",puntajes });
+                            conn.query("SELECT * FROM ejercicios_ultima_fecha WHERE user_id=?",[user_id],(err,rows)=>{
+                                if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                const paraguayanDate=new Date().toLocaleDateString('es-PY', {
+                                    timeZone: 'America/Asuncion',
+                                });
+                                const today=formatToISODate(paraguayanDate)
+                                const fechaUltimoEjercicio=rows[0].fecha.toISOString().split('T')[0]
+                                if(fechaUltimoEjercicio!==today){
+                                  //Primer ejercicio del dia
+                                  conn.query("UPDATE ejercicios_ultima_fecha set ? WHERE user_id=?",[{fecha:today,cantidad:(total)},user_id],(err,rows)=>{
+                                  if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                  
+                                  if(total>=12){
+                                    conn.query(`SELECT * FROM rachas
+                                    WHERE user_id = ?
+                                    ORDER BY fecha_final DESC
+                                    LIMIT 1;`,[user_id],(err,rows)=>{
+                                      if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                      if(rows.length==0){
+                                        conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                          if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                          return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})  
+                                        })
+                                      }else{
+                                        const idRacha=rows[0].id
+                                        const todayDate=parseDate(today)
+                                        const fechaUltimaRacha=parseDate(rows[0].fecha_final)
+                                        const diffTime=todayDate-fechaUltimaRacha
+                                        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                        if(diffDays>=2){
+                                          // Crear racha
+                                          conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                            return res.status(200).json({msg:"¡Felicidades! Empezaste una racha",racha:true,rachaCreada:true})   
+                                          })
+                                        }else if(diffDays==1){
+                                          //Actualizar racha
+                                          conn.query("UPDATE rachas set ? WHERE id=?",[{user_id,fecha_final:today},idRacha],(err,rows)=>{
+                                            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                            return res.status(200).json({msg:"¡Felicidades! Extendiste tu racha",racha:true,rachaCreada:true})  
+                                          })
+                                        }else{
+                                          //Solo suma puntos
+                                          return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true}) 
+                                        }
+                                      }
+                                    })
+                                  }else{
+                                    return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:false,cantidad:(total)})    
+                                  }
+                                  })
+                                }else{
+                                  //Varios ejercicios en el dia
+                                  let nuevaCantidad=rows[0].cantidad+(total)
+                                  conn.query("UPDATE ejercicios_ultima_fecha set ? WHERE user_id=?",[{cantidad:nuevaCantidad},user_id],(err,rows)=>{
+                                    if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                    if(nuevaCantidad>=12){
+                                      conn.query(`SELECT * FROM rachas
+                                      WHERE user_id = ?
+                                      ORDER BY fecha_final DESC
+                                      LIMIT 1;`,[user_id],(err,rows)=>{
+                                        if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                        if(rows.length==0){
+                                          conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                            if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                            return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true})  
+                                          })
+                                        }else{
+                                          const idRacha=rows[0].id
+                                          const todayDate=parseDate(today)
+                                          const fechaUltimaRacha=parseDate(rows[0].fecha_final)
+                                          const diffTime=todayDate-fechaUltimaRacha
+                                          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                                          if(diffDays>=2){
+                                            // Crear racha
+                                            conn.query("INSERT INTO rachas set ?",[{user_id,fecha_inicio:today,fecha_final:today}],(err,rows)=>{
+                                              if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                              return res.status(200).json({msg:"¡Felicidades! Empezaste una racha",racha:true,rachaCreada:true})    
+                                          })
+                                          }else if(diffDays==1){
+                                            //Actualizar racha
+                                            conn.query("UPDATE rachas set ? WHERE id=?",[{user_id,fecha_final:today},idRacha],(err,rows)=>{
+                                              if(err) return res.status(500).json({ error: "Error al conectar con la base de datos." })
+                                              return res.status(200).json({msg:"¡Felicidades! Extendiste tu racha",racha:true,rachaCreada:true}) 
+                                            })
+                                          }else{
+                                            //Solo suma puntos
+                                            return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:true}) 
+                                          }
+                                        }
+                                      })
+                                    }else{
+                                      return res.status(200).json({msg:"Los datos fueron actualizados exitosamente",racha:false,cantidad:(total)})    
+                                    }
+                                  })
+                                }
+                              })
                         }
-
                     })
                 });
     });

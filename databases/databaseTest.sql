@@ -8,6 +8,7 @@ create table user(
     rol varchar(255) not null,
     password varchar(255) not null
 );
+
 create table unidad(
     user_id int not null,
     nivel_id int not null AUTO_INCREMENT,
@@ -101,4 +102,25 @@ create table relaciones(
     apellido_profesor varchar(255) not null,
     primary key(id)
 );
+CREATE TABLE rachas (
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    fecha_inicio DATE DEFAULT NULL,
+    fecha_final DATE DEFAULT NULL,
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+CREATE TABLE ejercicios_ultima_fecha(
+    id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL, 
+    fecha DATE DEFAULT NULL,
+    cantidad INT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES user(id)
+);
+/*Esto es completamente necesario, debo añadirlo una vez que se modifique la base de datos*/
+ALTER TABLE rachas
+ADD CONSTRAINT unique_user_fecha UNIQUE (user_id, fecha_inicio);
 
+
+INSERT INTO ejercicios_ultima_fecha (fecha, cantidad, user_id)
+SELECT CURDATE(), 0, id
+FROM user;

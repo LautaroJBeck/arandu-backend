@@ -5,6 +5,7 @@ const { validarCampos } = require("../helpers/validarCampos");
 const bcryptjs = require("bcryptjs");
 const generarJWT = require("../helpers/generarJWT");
 const { actualizarConCorreo, actualizarSinCorreo } = require("../controllers/actualizarUsuario");
+const formatToISODate = require("../helpers/formatToISO");
 const ruta = Router();
 
 //Registrarse
@@ -51,26 +52,32 @@ ruta.post(
                 })
               })
               let arrayIds=[]
-              //Se consiguen los IDs asignados dentro de la tabla nivel_id
-              conn.query("SELECT * FROM unidad WHERE user_id=?",[id],async(err,rows)=>{
-                if(err) return res.send(err)
-                for(let i=0;i<rows.length;i++){
-                  arrayIds.push(rows[i].nivel_id)
-                }
-                for(let i=0;i<rows.length;i++){
-                  conn.query("INSERT into niveles set ?",[{
-                    nivel_id:arrayIds[i],
-                    contexto:0,
-                    significado:0,
-                    central:0,
-                    conexiones:0,
-                    estructura:0,
-                    inferencias:0,
-                    textuales:0
-                  }],(err,rows)=>{
-                    if(err) return res.status(500).json({ error: "Error al agregar datos a la base de datos." })
-                  })
-                }
+              const paraguayanDate= new Date().toLocaleDateString('es-PY', {
+                timeZone: 'America/Asuncion',
+              });
+              const today=formatToISODate(paraguayanDate)
+              conn.query("INSERT into ejercicios_ultima_fecha set ?",[{user_id:id,fecha:today,cantidad:0}],(err,rows)=>{
+                //Se consiguen los IDs asignados dentro de la tabla nivel_id
+                conn.query("SELECT * FROM unidad WHERE user_id=?",[id],async(err,rows)=>{
+                  if(err) return res.send(err)
+                  for(let i=0;i<rows.length;i++){
+                    arrayIds.push(rows[i].nivel_id)
+                  }
+                  for(let i=0;i<rows.length;i++){
+                    conn.query("INSERT into niveles set ?",[{
+                      nivel_id:arrayIds[i],
+                      contexto:0,
+                      significado:0,
+                      central:0,
+                      conexiones:0,
+                      estructura:0,
+                      inferencias:0,
+                      textuales:0
+                    }],(err,rows)=>{
+                      if(err) return res.status(500).json({ error: "Error al agregar datos a la base de datos." })
+                    })
+                  }
+                })
               })
               return res.json({
               token,
@@ -145,19 +152,27 @@ ruta.delete("/:id", [
                 conn.query("DELETE FROM unidad WHERE user_id=?", [id], (err) => {
                   if (err) return res.status(500).json({ error: "Error al eliminar unidades asociadas." });
 
-                  conn.query("DELETE FROM solicitud_pendiente WHERE profesor_id=? OR correo_alumno IN (SELECT correo FROM user WHERE id=?)", [id, id], (err) => {
-                    if (err) return res.status(500).json({ error: "Error al eliminar solicitudes pendientes asociadas." });
+                  conn.query("DELETE FROM rachas WHERE user_id=?",[id],(err)=>{
+                    if(err) return res.status(500).json({error:"Error al eliminar rachas asociadas."})
+                      
+                      conn.query("DELETE FROM ejercicios_ultima_fecha WHERE user_id=?",[id],(err)=>{
+                        if(err) return res.status(500).json({error:"Error al eliminar rachas asociadas."})
 
-                    conn.query("DELETE FROM relaciones WHERE profesor_id=? OR alumno_id=?", [id, id], (err) => {
-                      if (err) return res.status(500).json({ error: "Error al eliminar relaciones asociadas." });
-
-                      // Finalmente eliminar el usuario
-                      conn.query("DELETE FROM user WHERE id=?", [id], (err) => {
-                        if (err) return res.status(500).json({ error: "Error al eliminar el usuario." });
-                        return res.status(200).json({ msg: "El usuario se eliminó correctamente" });
-                      });
-                    });
-                  });
+                        conn.query("DELETE FROM solicitud_pendiente WHERE profesor_id=? OR correo_alumno IN (SELECT correo FROM user WHERE id=?)", [id, id], (err) => {
+                          if (err) return res.status(500).json({ error: "Error al eliminar solicitudes pendientes asociadas." });
+      
+                          conn.query("DELETE FROM relaciones WHERE profesor_id=? OR alumno_id=?", [id, id], (err) => {
+                            if (err) return res.status(500).json({ error: "Error al eliminar relaciones asociadas." });
+      
+                            // Finalmente eliminar el usuario
+                            conn.query("DELETE FROM user WHERE id=?", [id], (err) => {
+                              if (err) return res.status(500).json({ error: "Error al eliminar el usuario." });
+                              return res.status(200).json({ msg: "El usuario se eliminó correctamente" });
+                            });
+                          });
+                        });
+                      })
+                  })
                 });
               });
             });
@@ -222,7 +237,6 @@ ruta.put("/:id", [
     let { correo, nombre, apellido, originalCorreo, rol } = req.body;
 
     req.getConnection((err, conn) => {
-      console.log(err)
       if (err) return res.status(500).json({ error: "Error al conectar con la base de datos." });
 
       // Verificar si el correo ya está en uso

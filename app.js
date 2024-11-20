@@ -29,4 +29,8 @@ app.use("/api/register", require("./routes/register"));
 app.use("/api/login", require("./routes/login"));
 app.use("/api/scores", require("./routes/scores"));
 app.use("/api/relaciones",require("./routes/solicitudProfesor"))
+app.use("/api/rachas",require("./routes/rachas"))
 module.exports = app;
+
+
+
